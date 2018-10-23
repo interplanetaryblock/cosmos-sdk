@@ -73,7 +73,8 @@ func appStateFn(r *rand.Rand, accs []simulation.Account) json.RawMessage {
 		validator := stake.NewValidator(valAddr, accs[i].PubKey, stake.Description{})
 		validator.Tokens = sdk.NewDec(100)
 		validator.DelegatorShares = sdk.NewDec(100)
-		delegation := stake.Delegation{accs[i].Address, valAddr, sdk.NewDec(100), 0}
+		delegation := stake.Delegation{accs[i].Address,
+		valAddr, sdk.NewDec(100), 0}
 		validators = append(validators, validator)
 		delegations = append(delegations, delegation)
 	}
@@ -128,7 +129,8 @@ func invariants(app *GaiaApp) []simulation.Invariant {
 }
 
 // Profile with:
-// /usr/local/go/bin/go test -benchmem -run=^$ github.com/cosmos/cosmos-sdk/cmd/gaia/app -bench ^BenchmarkFullGaiaSimulation$ -SimulationCommit=true -cpuprofile cpu.out
+// /usr/local/go/bin/go test -benchmem -run=^$ github.com/cosmos/cosmos-sdk/cmd/gaia/app \
+// -bench ^BenchmarkFullGaiaSimulation$ -SimulationCommit=true -cpuprofile cpu.out
 func BenchmarkFullGaiaSimulation(b *testing.B) {
 	// Setup Gaia application
 	var logger log.Logger
