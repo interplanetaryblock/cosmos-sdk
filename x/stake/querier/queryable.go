@@ -12,6 +12,7 @@ import (
 const (
 	QueryValidators                    = "validators"
 	QueryValidator                     = "validator"
+	QueryValidatorDelegations          = "validatorDelegations"
 	QueryValidatorUnbondingDelegations = "validatorUnbondingDelegations"
 	QueryValidatorRedelegations        = "validatorRedelegations"
 	QueryDelegator                     = "delegator"
@@ -32,6 +33,8 @@ func NewQuerier(k keep.Keeper, cdc *codec.Codec) sdk.Querier {
 			return queryValidators(ctx, cdc, k)
 		case QueryValidator:
 			return queryValidator(ctx, cdc, req, k)
+		case QueryValidatorDelegations:
+			return queryValidatorDelegations(ctx, cdc, req, k)
 		case QueryValidatorUnbondingDelegations:
 			return queryValidatorUnbondingDelegations(ctx, cdc, req, k)
 		case QueryValidatorRedelegations:
@@ -67,6 +70,7 @@ type QueryDelegatorParams struct {
 
 // defines the params for the following queries:
 // - 'custom/stake/validator'
+// - 'custom/stake/validatorDelegations'
 // - 'custom/stake/validatorUnbondingDelegations'
 // - 'custom/stake/validatorRedelegations'
 type QueryValidatorParams struct {
@@ -115,6 +119,23 @@ func queryValidator(ctx sdk.Context, cdc *codec.Codec, req abci.RequestQuery, k 
 	}
 
 	res, errRes = codec.MarshalJSONIndent(cdc, validator)
+	if errRes != nil {
+		return nil, sdk.ErrInternal(sdk.AppendMsgToErr("could not marshal result to JSON", errRes.Error()))
+	}
+	return res, nil
+}
+
+func queryValidatorDelegations(ctx sdk.Context, cdc *codec.Codec, req abci.RequestQuery, k keep.Keeper) (res []byte, err sdk.Error) {
+	var params QueryValidatorParams
+
+	errRes := cdc.UnmarshalJSON(req.Data, &params)
+	if errRes != nil {
+		return []byte{}, sdk.ErrUnknownAddress("")
+	}
+
+	delegations := k.GetAllDelegationsToValidator(ctx, params.ValidatorAddr)
+
+	res, errRes = codec.MarshalJSONIndent(cdc, delegations)
 	if errRes != nil {
 		return nil, sdk.ErrInternal(sdk.AppendMsgToErr("could not marshal result to JSON", errRes.Error()))
 	}
