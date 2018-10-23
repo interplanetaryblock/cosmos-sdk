@@ -580,6 +580,9 @@ func TestBonding(t *testing.T) {
 	require.Equal(t, uint32(0), resultTx.CheckTx.Code)
 	require.Equal(t, uint32(0), resultTx.DeliverTx.Code)
 
+	redelegation := getRedelegation(t, port, addr, operAddrs[0], operAddrs[1])
+	require.Equal(t, "30", redelegation.Balance.Amount.String())
+
 	summary = getDelegationSummary(t, port, addr)
 
 	require.Len(t, summary.Delegations, 1, "Delegation summary holds all delegations")
@@ -995,6 +998,17 @@ func getUndelegation(t *testing.T, port string, delegatorAddr sdk.AccAddress, va
 	require.Nil(t, err)
 
 	return unbond
+}
+
+func getRedelegation(t *testing.T, port string, delegatorAddr sdk.AccAddress, srcValidatorAddr sdk.ValAddress, dstValidatorAddr sdk.ValAddress) stake.Redelegation {
+	res, body := Request(t, port, "GET", fmt.Sprintf("/stake/delegators/%s/redelegations/validator_from/%s/validator_to/%s", delegatorAddr, srcValidatorAddr, dstValidatorAddr), nil)
+	require.Equal(t, http.StatusOK, res.StatusCode, body)
+
+	var redel stake.Redelegation
+	err := cdc.UnmarshalJSON([]byte(body), &redel)
+	require.Nil(t, err)
+
+	return redel
 }
 
 func getDelegationSummary(t *testing.T, port string, delegatorAddr sdk.AccAddress) stake.DelegationSummary {
