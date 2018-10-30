@@ -50,11 +50,15 @@ ifeq ($(OS),Windows_NT)
 	go build $(BUILD_FLAGS) -o build/basecli.exe ./examples/basecoin/cmd/basecli
 	go build $(BUILD_FLAGS) -o build/democoind.exe ./examples/democoin/cmd/democoind
 	go build $(BUILD_FLAGS) -o build/democli.exe ./examples/democoin/cmd/democli
+	go build $(BUILD_FLAGS) -o build/multicoind.exe ./examples/multicoin/cmd/multicoind
+	go build $(BUILD_FLAGS) -o build/multicli.exe ./examples/multicoin/cmd/multicli
 else
 	go build $(BUILD_FLAGS) -o build/basecoind ./examples/basecoin/cmd/basecoind
 	go build $(BUILD_FLAGS) -o build/basecli ./examples/basecoin/cmd/basecli
 	go build $(BUILD_FLAGS) -o build/democoind ./examples/democoin/cmd/democoind
 	go build $(BUILD_FLAGS) -o build/democli ./examples/democoin/cmd/democli
+	go build $(BUILD_FLAGS) -o build/multicoind ./examples/multicoin/cmd/multicoind
+	go build $(BUILD_FLAGS) -o build/multicli ./examples/multicoin/cmd/multicli
 endif
 
 install: check-ledger
@@ -66,6 +70,8 @@ install_examples:
 	go install $(BUILD_FLAGS) ./examples/basecoin/cmd/basecli
 	go install $(BUILD_FLAGS) ./examples/democoin/cmd/democoind
 	go install $(BUILD_FLAGS) ./examples/democoin/cmd/democli
+	go install $(BUILD_FLAGS) ./examples/multicoin/cmd/multicoind
+	go install $(BUILD_FLAGS) ./examples/multicoin/cmd/multicli
 
 install_cosmos-sdk-cli:
 	go install $(BUILD_FLAGS) ./cmd/cosmos-sdk-cli
