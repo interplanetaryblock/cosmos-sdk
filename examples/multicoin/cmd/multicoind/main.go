@@ -17,6 +17,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/server"
 
 	"github.com/cosmos/cosmos-sdk/examples/multicoin/app"
+	"github.com/cosmos/cosmos-sdk/examples/multicoin/types"
 )
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 		PersistentPreRunE: server.PersistentPreRunEFn(ctx),
 	}
 
-	server.AddCommands(ctx, cdc, rootCmd, server.DefaultAppInit,
+	server.AddCommands(ctx, cdc, rootCmd, types.MultiAppInit(),
 		server.ConstructAppCreator(newApp, "multicoin"),
 		server.ConstructAppExporter(exportAppStateAndTMValidators, "multicoin"))
 
@@ -49,6 +50,6 @@ func newApp(logger log.Logger, db dbm.DB, storeTracer io.Writer) abci.Applicatio
 }
 
 func exportAppStateAndTMValidators(logger log.Logger, db dbm.DB, storeTracer io.Writer) (json.RawMessage, []tmtypes.GenesisValidator, error) {
-	bapp := app.NewMulticoinApp(logger, db)
-	return bapp.ExportAppStateAndValidators()
+	mapp := app.NewMulticoinApp(logger, db)
+	return mapp.ExportAppStateAndValidators()
 }

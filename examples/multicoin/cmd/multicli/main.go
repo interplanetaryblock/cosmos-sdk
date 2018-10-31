@@ -14,6 +14,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/version"
 	authcmd "github.com/cosmos/cosmos-sdk/x/auth/client/cli"
 	bankcmd "github.com/cosmos/cosmos-sdk/x/bank/client/cli"
+	govcmd "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
 	ibccmd "github.com/cosmos/cosmos-sdk/x/ibc/client/cli"
 	stakecmd "github.com/cosmos/cosmos-sdk/x/stake/client/cli"
 
@@ -66,6 +67,20 @@ func main() {
 			stakecmd.GetCmdDelegate(cdc),
 			stakecmd.GetCmdUnbond("stake", cdc),
 		)...)
+
+	// add gov commands
+	rootCmd.AddCommand(
+		client.GetCommands(
+			govcmd.GetCmdQueryProposal("gov", cdc),
+			govcmd.GetCmdQueryProposals("gov", cdc),
+			govcmd.GetCmdQueryVote("gov", cdc),
+			govcmd.GetCmdQueryVotes("gov", cdc),
+		)...)
+	rootCmd.AddCommand(client.PostCommands(
+		govcmd.GetCmdSubmitProposal(cdc),
+		govcmd.GetCmdDeposit(cdc),
+		govcmd.GetCmdVote(cdc),
+	)...)
 
 	// add proxy, version and key info
 	rootCmd.AddCommand(

@@ -14,7 +14,10 @@ import (
 	"github.com/cosmos/cosmos-sdk/wire"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	"github.com/cosmos/cosmos-sdk/x/bank"
+	"github.com/cosmos/cosmos-sdk/x/gov"
 	"github.com/cosmos/cosmos-sdk/x/ibc"
+	"github.com/cosmos/cosmos-sdk/x/params"
+	"github.com/cosmos/cosmos-sdk/x/stake"
 
 	"github.com/cosmos/cosmos-sdk/examples/multicoin/types"
 )
@@ -35,12 +38,18 @@ type MulticoinApp struct {
 	keyMain    *sdk.KVStoreKey
 	keyAccount *sdk.KVStoreKey
 	keyIBC     *sdk.KVStoreKey
+	keyParams  *sdk.KVStoreKey
+	keyStake   *sdk.KVStoreKey
+	keyGov     *sdk.KVStoreKey
 
 	// manage getting and setting accounts
 	accountMapper       auth.AccountMapper
 	feeCollectionKeeper auth.FeeCollectionKeeper
 	coinKeeper          bank.Keeper
 	ibcMapper           ibc.Mapper
+	paramsKeeper        params.Keeper
+	stakeKeeper         stake.Keeper
+	govKeeper           gov.Keeper
 }
 
 // NewMulticoinApp returns a reference to a new MulticoinApp given a logger and
@@ -59,6 +68,9 @@ func NewMulticoinApp(logger log.Logger, db dbm.DB, baseAppOptions ...func(*bam.B
 		keyMain:    sdk.NewKVStoreKey("main"),
 		keyAccount: sdk.NewKVStoreKey("acc"),
 		keyIBC:     sdk.NewKVStoreKey("ibc"),
+		keyParams:  sdk.NewKVStoreKey("params"),
+		keyStake:   sdk.NewKVStoreKey("stake"),
+		keyGov:     sdk.NewKVStoreKey("gov"),
 	}
 
 	// define and attach the mappers and keepers
@@ -71,11 +83,15 @@ func NewMulticoinApp(logger log.Logger, db dbm.DB, baseAppOptions ...func(*bam.B
 	)
 	app.coinKeeper = bank.NewKeeper(app.accountMapper)
 	app.ibcMapper = ibc.NewMapper(app.cdc, app.keyIBC, app.RegisterCodespace(ibc.DefaultCodespace))
-
+	app.paramsKeeper = params.NewKeeper(app.cdc, app.keyParams)
+	app.stakeKeeper = stake.NewKeeper(cdc, app.keyStake, app.coinKeeper, app.RegisterCodespace(stake.DefaultCodespace))
+	app.govKeeper = gov.NewKeeper(cdc, app.keyGov, app.paramsKeeper.Setter(), app.coinKeeper, app.stakeKeeper, app.RegisterCodespace(gov.DefaultCodespace))
 	// register message routes
 	app.Router().
 		AddRoute("bank", bank.NewHandler(app.coinKeeper)).
-		AddRoute("ibc", ibc.NewHandler(app.ibcMapper, app.coinKeeper))
+		AddRoute("ibc", ibc.NewHandler(app.ibcMapper, app.coinKeeper)).
+		AddRoute("stake", stake.NewHandler(app.stakeKeeper)).
+		AddRoute("gov", gov.NewHandler(app.govKeeper))
 
 	// perform initialization logic
 	app.SetInitChainer(app.initChainer)
@@ -84,7 +100,7 @@ func NewMulticoinApp(logger log.Logger, db dbm.DB, baseAppOptions ...func(*bam.B
 	app.SetAnteHandler(auth.NewAnteHandler(app.accountMapper, app.feeCollectionKeeper))
 
 	// mount the multistore and load the latest state
-	app.MountStoresIAVL(app.keyMain, app.keyAccount, app.keyIBC)
+	app.MountStoresIAVL(app.keyMain, app.keyAccount, app.keyIBC, app.keyParams, app.keyStake, app.keyGov)
 	err := app.LoadLatestVersion(app.keyMain)
 	if err != nil {
 		cmn.Exit(err.Error())
@@ -105,6 +121,8 @@ func MakeCodec() *wire.Codec {
 	bank.RegisterWire(cdc)
 	ibc.RegisterWire(cdc)
 	auth.RegisterWire(cdc)
+	stake.RegisterWire(cdc)
+	gov.RegisterWire(cdc)
 
 	// register custom type
 	cdc.RegisterConcrete(&types.AppAccount{}, "multicoin/Account", nil)
@@ -122,8 +140,14 @@ func (app *MulticoinApp) BeginBlocker(_ sdk.Context, _ abci.RequestBeginBlock) a
 
 // EndBlocker reflects logic to run after all TXs are processed by the
 // application.
-func (app *MulticoinApp) EndBlocker(_ sdk.Context, _ abci.RequestEndBlock) abci.ResponseEndBlock {
-	return abci.ResponseEndBlock{}
+func (app *MulticoinApp) EndBlocker(ctx sdk.Context, _ abci.RequestEndBlock) abci.ResponseEndBlock {
+	tags := gov.EndBlocker(ctx, app.govKeeper)
+	validatorUpdates := stake.EndBlocker(ctx, app.stakeKeeper)
+
+	return abci.ResponseEndBlock{
+		ValidatorUpdates: validatorUpdates,
+		Tags:             tags,
+	}
 }
 
 // initChainer implements the custom application logic that the BaseApp will
@@ -152,7 +176,17 @@ func (app *MulticoinApp) initChainer(ctx sdk.Context, req abci.RequestInitChain)
 		app.accountMapper.SetAccount(ctx, acc)
 	}
 
-	return abci.ResponseInitChain{}
+	validators, err := stake.InitGenesis(ctx, app.stakeKeeper, genesisState.StakeData)
+	if err != nil {
+		panic(err) // TODO https://github.com/cosmos/cosmos-sdk/issues/468
+		// return sdk.ErrGenesisParse("").TraceCause(err, "")
+	}
+
+	gov.InitGenesis(ctx, app.govKeeper, gov.DefaultGenesisState())
+
+	return abci.ResponseInitChain{
+		Validators: validators,
+	}
 }
 
 // ExportAppStateAndValidators implements custom application logic that exposes
@@ -160,10 +194,10 @@ func (app *MulticoinApp) initChainer(ctx sdk.Context, req abci.RequestInitChain)
 // returned if any step getting the state or set of validators fails.
 func (app *MulticoinApp) ExportAppStateAndValidators() (appState json.RawMessage, validators []tmtypes.GenesisValidator, err error) {
 	ctx := app.NewContext(true, abci.Header{})
-	accounts := []*types.GenesisAccount{}
+	accounts := []types.GenesisAccount{}
 
 	appendAccountsFn := func(acc auth.Account) bool {
-		account := &types.GenesisAccount{
+		account := types.GenesisAccount{
 			Address: acc.GetAddress(),
 			Coins:   acc.GetCoins(),
 		}
@@ -174,11 +208,15 @@ func (app *MulticoinApp) ExportAppStateAndValidators() (appState json.RawMessage
 
 	app.accountMapper.IterateAccounts(ctx, appendAccountsFn)
 
-	genState := types.GenesisState{Accounts: accounts}
+	genState := types.GenesisState{
+		Accounts:  accounts,
+		StakeData: stake.WriteGenesis(ctx, app.stakeKeeper),
+	}
 	appState, err = wire.MarshalJSONIndent(app.cdc, genState)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return appState, validators, err
+	validators = stake.WriteValidators(ctx, app.stakeKeeper)
+	return appState, nil, err
 }
