@@ -16,6 +16,7 @@ import (
 	bankcmd "github.com/cosmos/cosmos-sdk/x/bank/client/cli"
 	govcmd "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
 	ibccmd "github.com/cosmos/cosmos-sdk/x/ibc/client/cli"
+	namingcmd "github.com/cosmos/cosmos-sdk/x/naming/client/cli"
 	stakecmd "github.com/cosmos/cosmos-sdk/x/stake/client/cli"
 
 	"github.com/cosmos/cosmos-sdk/examples/multicoin/app"
@@ -81,6 +82,13 @@ func main() {
 		govcmd.GetCmdDeposit(cdc),
 		govcmd.GetCmdVote(cdc),
 	)...)
+
+	// add naming commands
+	rootCmd.AddCommand(
+		client.PostCommands(
+			namingcmd.GetCmdBuyName(cdc),
+			namingcmd.GetCmdSetName(cdc),
+		)...)
 
 	// add proxy, version and key info
 	rootCmd.AddCommand(

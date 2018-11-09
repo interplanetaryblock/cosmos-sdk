@@ -16,6 +16,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	"github.com/cosmos/cosmos-sdk/x/gov"
 	"github.com/cosmos/cosmos-sdk/x/ibc"
+	"github.com/cosmos/cosmos-sdk/x/naming"
 	"github.com/cosmos/cosmos-sdk/x/params"
 	"github.com/cosmos/cosmos-sdk/x/stake"
 
@@ -41,6 +42,7 @@ type MulticoinApp struct {
 	keyParams  *sdk.KVStoreKey
 	keyStake   *sdk.KVStoreKey
 	keyGov     *sdk.KVStoreKey
+	keyNaming  *sdk.KVStoreKey
 
 	// manage getting and setting accounts
 	accountMapper       auth.AccountMapper
@@ -50,6 +52,7 @@ type MulticoinApp struct {
 	paramsKeeper        params.Keeper
 	stakeKeeper         stake.Keeper
 	govKeeper           gov.Keeper
+	namingKeeper        naming.Keeper
 }
 
 // NewMulticoinApp returns a reference to a new MulticoinApp given a logger and
@@ -71,6 +74,7 @@ func NewMulticoinApp(logger log.Logger, db dbm.DB, baseAppOptions ...func(*bam.B
 		keyParams:  sdk.NewKVStoreKey("params"),
 		keyStake:   sdk.NewKVStoreKey("stake"),
 		keyGov:     sdk.NewKVStoreKey("gov"),
+		keyNaming:  sdk.NewKVStoreKey("naming"),
 	}
 
 	// define and attach the mappers and keepers
@@ -86,12 +90,15 @@ func NewMulticoinApp(logger log.Logger, db dbm.DB, baseAppOptions ...func(*bam.B
 	app.paramsKeeper = params.NewKeeper(app.cdc, app.keyParams)
 	app.stakeKeeper = stake.NewKeeper(cdc, app.keyStake, app.coinKeeper, app.RegisterCodespace(stake.DefaultCodespace))
 	app.govKeeper = gov.NewKeeper(cdc, app.keyGov, app.paramsKeeper.Setter(), app.coinKeeper, app.stakeKeeper, app.RegisterCodespace(gov.DefaultCodespace))
+	app.namingKeeper = naming.NewKeeper(cdc, app.coinKeeper, app.keyNaming)
+
 	// register message routes
 	app.Router().
 		AddRoute("bank", bank.NewHandler(app.coinKeeper)).
 		AddRoute("ibc", ibc.NewHandler(app.ibcMapper, app.coinKeeper)).
 		AddRoute("stake", stake.NewHandler(app.stakeKeeper)).
-		AddRoute("gov", gov.NewHandler(app.govKeeper))
+		AddRoute("gov", gov.NewHandler(app.govKeeper)).
+		AddRoute("naming", naming.NewHandler(app.namingKeeper))
 
 	// perform initialization logic
 	app.SetInitChainer(app.initChainer)
@@ -100,7 +107,7 @@ func NewMulticoinApp(logger log.Logger, db dbm.DB, baseAppOptions ...func(*bam.B
 	app.SetAnteHandler(auth.NewAnteHandler(app.accountMapper, app.feeCollectionKeeper))
 
 	// mount the multistore and load the latest state
-	app.MountStoresIAVL(app.keyMain, app.keyAccount, app.keyIBC, app.keyParams, app.keyStake, app.keyGov)
+	app.MountStoresIAVL(app.keyMain, app.keyAccount, app.keyIBC, app.keyParams, app.keyStake, app.keyGov, app.keyNaming)
 	err := app.LoadLatestVersion(app.keyMain)
 	if err != nil {
 		cmn.Exit(err.Error())
@@ -123,6 +130,7 @@ func MakeCodec() *wire.Codec {
 	auth.RegisterWire(cdc)
 	stake.RegisterWire(cdc)
 	gov.RegisterWire(cdc)
+	naming.RegisterCodec(cdc)
 
 	// register custom type
 	cdc.RegisterConcrete(&types.AppAccount{}, "multicoin/Account", nil)

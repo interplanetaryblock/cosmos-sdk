@@ -1,13 +1,16 @@
 package cli
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
+	"github.com/cosmos/cosmos-sdk/client/utils"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/wire"
-	"github.com/cosmos/cosmos-sdk/x/auth"
 	authcmd "github.com/cosmos/cosmos-sdk/x/auth/client/cli"
+	authctx "github.com/cosmos/cosmos-sdk/x/auth/client/context"
 	"github.com/cosmos/cosmos-sdk/x/naming"
 )
 
@@ -24,8 +27,10 @@ func GetCmdBuyName(cdc *wire.Codec) *cobra.Command {
 		Short: "bid for existing name or claim new name",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			txCtx := authctx.NewTxContextFromCLI().WithCodec(cdc)
 			cliCtx := context.NewCLIContext().
 				WithCodec(cdc).
+				WithLogger(os.Stdout).
 				WithAccountDecoder(authcmd.GetAccountDecoder(cdc))
 
 			if err := cliCtx.EnsureAccountExists(); err != nil {
@@ -45,21 +50,17 @@ func GetCmdBuyName(cdc *wire.Codec) *cobra.Command {
 				return err
 			}
 
-			msg := naming.MsgBuyName{
-				NameID: name,
-				Bid:    coins,
-				Buyer:  account,
+			msg := naming.NewMsgBuyName(name, coins, account)
+
+			err = msg.ValidateBasic()
+			if err != nil {
+				return err
 			}
 
-			tx := auth.StdTx{
-				Msgs: []sdk.Msg{msg},
-			}
-
-			bz := cdc.MustMarshalBinary(tx)
-
-			_, err = cliCtx.BroadcastTx(bz)
-
-			return err
+			// Build and sign the transaction, then broadcast to Tendermint
+			// NameID must be returned, and it is a part of response.
+			cliCtx.PrintResponse = true
+			return utils.SendTx(txCtx, cliCtx, []sdk.Msg{msg})
 		},
 	}
 
@@ -73,6 +74,7 @@ func GetCmdSetName(cdc *wire.Codec) *cobra.Command {
 		Short: "set the value associated with a name that you own",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			txCtx := authctx.NewTxContextFromCLI().WithCodec(cdc)
 			cliCtx := context.NewCLIContext().
 				WithCodec(cdc).
 				WithAccountDecoder(authcmd.GetAccountDecoder(cdc))
@@ -89,21 +91,14 @@ func GetCmdSetName(cdc *wire.Codec) *cobra.Command {
 				return err
 			}
 
-			msg := naming.MsgSetName{
-				NameID: name,
-				Value:  value,
-				Owner:  account,
+			msg := naming.NewMsgSetName(name, value, account)
+
+			err = msg.ValidateBasic()
+			if err != nil {
+				return err
 			}
 
-			tx := auth.StdTx{
-				Msgs: []sdk.Msg{msg},
-			}
-
-			bz := cdc.MustMarshalBinary(tx)
-
-			_, err = cliCtx.BroadcastTx(bz)
-
-			return err
+			return utils.SendTx(txCtx, cliCtx, []sdk.Msg{msg})
 		},
 	}
 

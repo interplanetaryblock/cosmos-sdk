@@ -24,11 +24,11 @@ var (
 )
 
 // NewKeeper creates new instances of the naming Keeper
-func NewKeeper(coinKeeper bank.Keeper, storeKey sdk.StoreKey, cdc *wire.Codec) Keeper {
+func NewKeeper(cdc *wire.Codec, coinKeeper bank.Keeper, storeKey sdk.StoreKey) Keeper {
 	return Keeper{
+		cdc:        cdc,
 		coinKeeper: coinKeeper,
 		storeKey:   storeKey,
-		cdc:        cdc,
 	}
 }
 
