@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/tendermint/tendermint/libs/bech32"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/client/utils"
@@ -12,12 +15,6 @@ import (
 	authcmd "github.com/cosmos/cosmos-sdk/x/auth/client/cli"
 	authctx "github.com/cosmos/cosmos-sdk/x/auth/client/context"
 	"github.com/cosmos/cosmos-sdk/x/naming"
-)
-
-const (
-	flagName   = "name"
-	flagValue  = "value"
-	flagAmount = "amount"
 )
 
 // GetCmdBuyName is the CLI command for sending a BuyName transaction
@@ -99,6 +96,55 @@ func GetCmdSetName(cdc *wire.Codec) *cobra.Command {
 			}
 
 			return utils.SendTx(txCtx, cliCtx, []sdk.Msg{msg})
+		},
+	}
+
+	return cmd
+}
+
+// GetCmdResolveName queries information about a name
+func GetCmdResolveName(storeName string, cdc *wire.Codec) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "resolve [name]",
+		Short: "resolve name",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliCtx := context.NewCLIContext().WithCodec(cdc)
+			name := args[0]
+
+			res, err := cliCtx.QueryStore(naming.KeyResolve(name), storeName)
+			if len(res) == 0 || err != nil {
+				return errors.Errorf("could not resolve name - %s \n", name)
+			}
+
+			fmt.Println(string(res))
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// GetCmdWhois queries information about a domain
+func GetCmdWhois(storeName string, cdc *wire.Codec) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "whois [name]",
+		Short: "Query whois info of name",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliCtx := context.NewCLIContext().WithCodec(cdc)
+			name := args[0]
+
+			res, err := cliCtx.QueryStore(naming.KeyOwner(name), storeName)
+			if len(res) == 0 || err != nil {
+				return errors.Errorf("could not get owner of name - %s \n", name)
+			}
+
+			accAddr, err := bech32.ConvertAndEncode(sdk.Bech32PrefixAccAddr, res)
+			fmt.Println(accAddr)
+
+			return nil
 		},
 	}
 

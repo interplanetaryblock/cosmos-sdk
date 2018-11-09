@@ -85,6 +85,11 @@ func main() {
 
 	// add naming commands
 	rootCmd.AddCommand(
+		client.GetCommands(
+			namingcmd.GetCmdResolveName("naming", cdc),
+			namingcmd.GetCmdWhois("naming", cdc),
+		)...)
+	rootCmd.AddCommand(
 		client.PostCommands(
 			namingcmd.GetCmdBuyName(cdc),
 			namingcmd.GetCmdSetName(cdc),
