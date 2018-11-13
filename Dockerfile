@@ -18,7 +18,9 @@ RUN apk add --no-cache $PACKAGES && \
     make get_tools && \
     make get_vendor_deps && \
     make build && \
-    make install
+    make install && \
+    make examples && \
+    make install_examples
 
 # Final image
 FROM alpine:edge
@@ -28,8 +30,13 @@ RUN apk add --update ca-certificates
 WORKDIR /root
 
 # Copy over binaries from the build-env
+COPY --from=build-env /go/bin/basecoind /usr/bin/basecoind
+COPY --from=build-env /go/bin/basecli /usr/bin/basecli
+
+COPY --from=build-env /go/bin/multicoind /usr/bin/multicoind
+COPY --from=build-env /go/bin/multicli /usr/bin/multicli
+
 COPY --from=build-env /go/bin/gaiad /usr/bin/gaiad
 COPY --from=build-env /go/bin/gaiacli /usr/bin/gaiacli
-
 # Run gaiad by default, omit entrypoint to ease using container with gaiacli
-CMD ["gaiad"]
+CMD ["multicoind version"]
