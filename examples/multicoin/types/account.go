@@ -26,6 +26,8 @@ var (
 	// bonded tokens given to genesis validators/accounts
 	freeFermionVal  = int64(100)
 	freeFermionsAcc = int64(50)
+	// free tokens given to gensis accounts
+	freeAccTokenVal = int64(1000000000)
 )
 
 var _ auth.Account = (*AppAccount)(nil)
@@ -221,7 +223,7 @@ func MultiAppGenState(cdc *wire.Codec, appGenTxs []json.RawMessage) (genesisStat
 		// create the genesis account, give'm few steaks and a buncha token with there name
 		accAuth := auth.NewBaseAccountWithAddress(genTx.Address)
 		accAuth.Coins = sdk.Coins{
-			{genTx.Name + "Token", sdk.NewInt(1000)},
+			{genTx.Name + "Token", sdk.NewInt(freeAccTokenVal)},
 			{"steak", sdk.NewInt(freeFermionsAcc)},
 		}
 		acc := NewGenesisAccount(&accAuth)
