@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/client/utils"
@@ -19,6 +20,7 @@ import (
 const (
 	flagTo     = "to"
 	flagAmount = "amount"
+	flagNums   = "nums"
 )
 
 // SendTxCmd will create a send tx and sign it with the given key.
@@ -75,6 +77,72 @@ func SendTxCmd(cdc *wire.Codec) *cobra.Command {
 
 	cmd.Flags().String(flagTo, "", "Address to send coins")
 	cmd.Flags().String(flagAmount, "", "Amount of coins to send")
+
+	return cmd
+}
+
+// BatchSendTxCmd will create send txs and sign them with the given key.
+func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "batch-send",
+		Short: "Create and sign send txs",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			txCtx := authctx.NewTxContextFromCLI().WithCodec(cdc)
+			cliCtx := context.NewCLIContext().
+				WithCodec(cdc).
+				WithLogger(os.Stdout).
+				WithAccountDecoder(authcmd.GetAccountDecoder(cdc))
+
+			if err := cliCtx.EnsureAccountExists(); err != nil {
+				return err
+			}
+
+			toStr := viper.GetString(flagTo)
+
+			to, err := sdk.AccAddressFromBech32(toStr)
+			if err != nil {
+				return err
+			}
+
+			// parse coins trying to be sent
+			amount := viper.GetString(flagAmount)
+			coins, err := sdk.ParseCoins(amount)
+			if err != nil {
+				return err
+			}
+
+			// parse nums of txs to be sent
+			numsStr := viper.GetString(flagNums)
+			nums, err := strconv.Atoi(numsStr)
+			if err != nil {
+				return err
+			}
+
+			from, err := cliCtx.GetFromAddress()
+			if err != nil {
+				return err
+			}
+
+			account, err := cliCtx.GetAccount(from)
+			if err != nil {
+				return err
+			}
+
+			// ensure account has enough coins
+			if !account.GetCoins().IsGTE(coins) {
+				return errors.Errorf("Address %s doesn't have enough coins to pay for this transaction.", from)
+			}
+
+			// build and sign the transaction, then broadcast to Tendermint
+			msg := client.BuildMsg(from, to, coins)
+
+			return utils.BatchSendTx(txCtx, cliCtx, []sdk.Msg{msg}, nums)
+		},
+	}
+
+	cmd.Flags().String(flagTo, "", "Address to send coins")
+	cmd.Flags().String(flagAmount, "", "Amount of coins to send")
+	cmd.Flags().String(flagNums, "", "nums of txs to send")
 
 	return cmd
 }
