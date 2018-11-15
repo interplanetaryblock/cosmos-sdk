@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"fmt"
+
 	"github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/client/keys"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -101,7 +103,9 @@ func BatchSendTx(txCtx authctx.TxContext, cliCtx context.CLIContext, msgs []sdk.
 		return err
 	}
 
-	// batch build, sign and broadcast txs
+	txMap := make(map[int][]byte)
+
+	// batch build and sign txs
 	for i := 0; i < nums; i++ {
 		// build and sign the transaction
 		txBytes, err := txCtx.BuildAndSign(cliCtx.FromAddressName, passphrase, msgs)
@@ -109,13 +113,21 @@ func BatchSendTx(txCtx authctx.TxContext, cliCtx context.CLIContext, msgs []sdk.
 			return err
 		}
 
+		txMap[i] = txBytes
+		fmt.Printf("account number: %d, sign %d msg, size: %d\n", txCtx.AccountNumber, i, len(txBytes))
+
+		txCtx.Sequence++
+	}
+
+	// batch broadcast txs
+	for i := 0; i < nums; i++ {
 		// broadcast to a Tendermint node
-		err = cliCtx.EnsureBroadcastTx(txBytes)
+		err = cliCtx.EnsureBroadcastTx(txMap[i])
 		if err != nil {
 			return err
 		}
 
-		txCtx.Sequence++
+		fmt.Printf("account number: %d, broadcast %d tx:\n", txCtx.AccountNumber, i)
 	}
 
 	return nil
