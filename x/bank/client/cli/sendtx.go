@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/client/keys"
@@ -130,17 +131,18 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 			var sendArray []sendPack
 			packStr := viper.GetString(flagPack)
 			err = json.Unmarshal([]byte(packStr), &sendArray)
-			if err != nil {
+			if err != nil || len(sendArray) == 0 {
 				return err
 			}
 
+			var wg sync.WaitGroup
+			wg.Add(len(sendArray))
+
 			for _, key := range sendArray {
-				err = sendAccountTxs(cdc, key.From, key.To, coins, nums, passphrase)
-				if err != nil {
-					return err
-				}
+				go sendAccountTxs(cdc, key.From, key.To, coins, nums, passphrase, &wg)
 			}
 
+			wg.Wait()
 			return nil
 		},
 	}
@@ -153,7 +155,7 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 	return cmd
 }
 
-func sendAccountTxs(cdc *wire.Codec, fromStr, toStr string, coins sdk.Coins, nums int, passphrase string) error {
+func sendAccountTxs(cdc *wire.Codec, fromStr, toStr string, coins sdk.Coins, nums int, passphrase string, wg *sync.WaitGroup) error {
 	txCtx := authctx.NewTxContextFromCLI().WithCodec(cdc)
 	cliCtx := context.NewCLIContext().
 		WithCodec(cdc).
@@ -192,5 +194,9 @@ func sendAccountTxs(cdc *wire.Codec, fromStr, toStr string, coins sdk.Coins, num
 	// build and sign the transaction, then broadcast to Tendermint
 	msg := client.BuildMsg(from, to, coins)
 
-	return utils.BatchSendTx(txCtx, cliCtx, []sdk.Msg{msg}, nums, passphrase)
+	err = utils.BatchSendTx(txCtx, cliCtx, []sdk.Msg{msg}, nums, passphrase)
+
+	wg.Done()
+
+	return err
 }
