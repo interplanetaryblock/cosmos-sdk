@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"strconv"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
+	"github.com/cosmos/cosmos-sdk/client/keys"
 	"github.com/cosmos/cosmos-sdk/client/utils"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/wire"
@@ -21,7 +23,14 @@ const (
 	flagTo     = "to"
 	flagAmount = "amount"
 	flagNums   = "nums"
+	flagPack   = "pack"
 )
+
+type sendPack struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	//amount string `json:"amount"`
+}
 
 // SendTxCmd will create a send tx and sign it with the given key.
 func SendTxCmd(cdc *wire.Codec) *cobra.Command {
@@ -87,7 +96,6 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 		Use:   "batch-send",
 		Short: "Create and sign send txs",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			txCtx := authctx.NewTxContextFromCLI().WithCodec(cdc)
 			cliCtx := context.NewCLIContext().
 				WithCodec(cdc).
 				WithLogger(os.Stdout).
@@ -98,11 +106,7 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 			}
 
 			toStr := viper.GetString(flagTo)
-
-			to, err := sdk.AccAddressFromBech32(toStr)
-			if err != nil {
-				return err
-			}
+			_ = toStr
 
 			// parse coins trying to be sent
 			amount := viper.GetString(flagAmount)
@@ -118,31 +122,75 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 				return err
 			}
 
-			from, err := cliCtx.GetFromAddress()
+			passphrase, err := keys.GetPassphrase(cliCtx.FromAddressName)
 			if err != nil {
 				return err
 			}
 
-			account, err := cliCtx.GetAccount(from)
+			var sendArray []sendPack
+			packStr := viper.GetString(flagPack)
+			err = json.Unmarshal([]byte(packStr), &sendArray)
 			if err != nil {
 				return err
 			}
 
-			// ensure account has enough coins
-			if !account.GetCoins().IsGTE(coins) {
-				return errors.Errorf("Address %s doesn't have enough coins to pay for this transaction.", from)
+			for _, key := range sendArray {
+				err = sendAccountTxs(cdc, key.From, key.To, coins, nums, passphrase)
+				if err != nil {
+					return err
+				}
 			}
 
-			// build and sign the transaction, then broadcast to Tendermint
-			msg := client.BuildMsg(from, to, coins)
-
-			return utils.BatchSendTx(txCtx, cliCtx, []sdk.Msg{msg}, nums)
+			return nil
 		},
 	}
 
 	cmd.Flags().String(flagTo, "", "Address to send coins")
 	cmd.Flags().String(flagAmount, "", "Amount of coins to send")
 	cmd.Flags().String(flagNums, "", "nums of txs to send")
+	cmd.Flags().String(flagPack, "", "packet of msgs to send")
 
 	return cmd
+}
+
+func sendAccountTxs(cdc *wire.Codec, fromStr, toStr string, coins sdk.Coins, nums int, passphrase string) error {
+	txCtx := authctx.NewTxContextFromCLI().WithCodec(cdc)
+	cliCtx := context.NewCLIContext().
+		WithCodec(cdc).
+		WithLogger(os.Stdout).
+		WithAccountDecoder(authcmd.GetAccountDecoder(cdc))
+
+	// get from account later
+	txCtx.AccountNumber = 0
+	txCtx.Sequence = 0
+	cliCtx.FromAddressName = fromStr
+
+	if err := cliCtx.EnsureAccountExists(); err != nil {
+		return err
+	}
+
+	from, err := cliCtx.GetFromAddress()
+	if err != nil {
+		return err
+	}
+
+	to, err := sdk.AccAddressFromBech32(toStr)
+	if err != nil {
+		return err
+	}
+
+	account, err := cliCtx.GetAccount(from)
+	if err != nil {
+		return err
+	}
+
+	// ensure account has enough coins
+	if !account.GetCoins().IsGTE(coins) {
+		return errors.Errorf("Address %s doesn't have enough coins to pay for this transaction.", from)
+	}
+
+	// build and sign the transaction, then broadcast to Tendermint
+	msg := client.BuildMsg(from, to, coins)
+
+	return utils.BatchSendTx(txCtx, cliCtx, []sdk.Msg{msg}, nums, passphrase)
 }

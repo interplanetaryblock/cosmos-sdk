@@ -66,7 +66,7 @@ func SendTx(txCtx authctx.TxContext, cliCtx context.CLIContext, msgs []sdk.Msg) 
 // ensures that the account exists, has a proper number and sequence set. In
 // addition, it builds and signs a transaction with the supplied messages.
 // Finally, it broadcasts the signed transaction to a node.
-func BatchSendTx(txCtx authctx.TxContext, cliCtx context.CLIContext, msgs []sdk.Msg, nums int) error {
+func BatchSendTx(txCtx authctx.TxContext, cliCtx context.CLIContext, msgs []sdk.Msg, nums int, passphrase string) error {
 	if err := cliCtx.EnsureAccountExists(); err != nil {
 		return err
 	}
@@ -98,10 +98,11 @@ func BatchSendTx(txCtx authctx.TxContext, cliCtx context.CLIContext, msgs []sdk.
 		txCtx = txCtx.WithSequence(accSeq)
 	}
 
-	passphrase, err := keys.GetPassphrase(cliCtx.FromAddressName)
-	if err != nil {
-		return err
-	}
+	// using the passphrase args
+	//passphrase, err := keys.GetPassphrase(cliCtx.FromAddressName)
+	//if err != nil {
+	//	return err
+	//}
 
 	txMap := make(map[int][]byte)
 
