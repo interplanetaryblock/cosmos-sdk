@@ -25,6 +25,7 @@ const (
 	flagAmount = "amount"
 	flagNums   = "nums"
 	flagPack   = "pack"
+	flagStep   = "step"
 )
 
 type sendPack struct {
@@ -118,8 +119,16 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 
 			// parse nums of txs to be sent
 			numsStr := viper.GetString(flagNums)
-			nums, err := strconv.Atoi(numsStr)
-			if err != nil {
+			nums, err := strconv.ParseInt(numsStr, 10, 64)
+			if err != nil || nums == 0 {
+				return err
+			}
+
+			// parse nums of txs to be sent
+			stepStr := viper.GetString(flagStep)
+			//step, err := strconv.Atoi(stepStr)
+			step, err := strconv.ParseInt(stepStr, 10, 64)
+			if err != nil || step == 0 {
 				return err
 			}
 
@@ -139,7 +148,7 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 			wg.Add(len(sendArray))
 
 			for _, key := range sendArray {
-				go sendAccountTxs(cdc, key.From, key.To, coins, nums, passphrase, &wg)
+				go sendAccountTxs(cdc, key.From, key.To, coins, nums, step, passphrase, &wg)
 			}
 
 			wg.Wait()
@@ -151,11 +160,12 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 	cmd.Flags().String(flagAmount, "", "Amount of coins to send")
 	cmd.Flags().String(flagNums, "", "nums of txs to send")
 	cmd.Flags().String(flagPack, "", "packet of msgs to send")
+	cmd.Flags().String(flagStep, "", "numbers of txs in one step")
 
 	return cmd
 }
 
-func sendAccountTxs(cdc *wire.Codec, fromStr, toStr string, coins sdk.Coins, nums int, passphrase string, wg *sync.WaitGroup) error {
+func sendAccountTxs(cdc *wire.Codec, fromStr, toStr string, coins sdk.Coins, nums, step int64, passphrase string, wg *sync.WaitGroup) error {
 	txCtx := authctx.NewTxContextFromCLI().WithCodec(cdc)
 	cliCtx := context.NewCLIContext().
 		WithCodec(cdc).
@@ -194,7 +204,7 @@ func sendAccountTxs(cdc *wire.Codec, fromStr, toStr string, coins sdk.Coins, num
 	// build and sign the transaction, then broadcast to Tendermint
 	msg := client.BuildMsg(from, to, coins)
 
-	err = utils.BatchSendTx(txCtx, cliCtx, []sdk.Msg{msg}, nums, passphrase)
+	err = utils.BatchSendTx(txCtx, cliCtx, []sdk.Msg{msg}, nums, step, passphrase)
 
 	wg.Done()
 

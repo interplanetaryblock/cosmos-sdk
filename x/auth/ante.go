@@ -160,10 +160,10 @@ func processSig(
 	// Check and increment sequence number.
 	seq := acc.GetSequence()
 	if seq != sig.Sequence {
-		return nil, sdk.ErrInvalidSequence(
-			fmt.Sprintf("Invalid sequence. Got %d, expected %d", sig.Sequence, seq)).Result()
+		fmt.Printf("Invalid sequence. Got %d, expected %d", sig.Sequence, seq)
 	}
-	err := acc.SetSequence(seq + 1)
+
+	err := acc.SetSequence(sig.Sequence + 1)
 	if err != nil {
 		// Handle w/ #870
 		panic(err)
