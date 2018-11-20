@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/client/keys"
@@ -135,9 +136,10 @@ func BatchSendTx(txCtx authctx.TxContext, cliCtx context.CLIContext, msgs []sdk.
 				return fmt.Errorf("wrong seq, should be: %d, cur: %d", i, curSeq)
 			}
 
-			if curSeq != accSeq && curSeq != i {
-				fmt.Printf("warnning: seq should be: %d, cur: %d", i, curSeq)
-			}
+			//if curSeq != accSeq && curSeq != i {
+			//fmt.Printf("warnning: seq should be: %d, cur: %d", i, curSeq)
+			//}
+			time.Sleep(time.Duration(10) * time.Millisecond)
 		}
 
 		// broadcast to a Tendermint node

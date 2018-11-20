@@ -26,6 +26,7 @@ const (
 	flagNums   = "nums"
 	flagPack   = "pack"
 	flagStep   = "step"
+	flagNList  = "nlist"
 )
 
 type sendPack struct {
@@ -144,11 +145,24 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 				return err
 			}
 
+			var nlist []string
+			nlistStr := viper.GetString(flagNList)
+			err = json.Unmarshal([]byte(nlistStr), &nlist)
+			if err != nil || len(nlist) == 0 {
+				return err
+			}
+
 			var wg sync.WaitGroup
 			wg.Add(len(sendArray))
 
+			n := len(nlist)
+			i := 0
 			for _, key := range sendArray {
-				go sendAccountTxs(cdc, key.From, key.To, coins, nums, step, passphrase, &wg)
+				if i >= n {
+					i = 0
+				}
+				go sendAccountTxs(cdc, key.From, key.To, nlist[i], coins, nums, step, passphrase, &wg)
+				i++
 			}
 
 			wg.Wait()
@@ -161,16 +175,18 @@ func BatchSendTxCmd(cdc *wire.Codec) *cobra.Command {
 	cmd.Flags().String(flagNums, "", "nums of txs to send")
 	cmd.Flags().String(flagPack, "", "packet of msgs to send")
 	cmd.Flags().String(flagStep, "", "numbers of txs in one step")
+	cmd.Flags().String(flagNList, "", "node list of rpc server")
 
 	return cmd
 }
 
-func sendAccountTxs(cdc *wire.Codec, fromStr, toStr string, coins sdk.Coins, nums, step int64, passphrase string, wg *sync.WaitGroup) error {
+func sendAccountTxs(cdc *wire.Codec, fromStr, toStr, node string, coins sdk.Coins, nums, step int64, passphrase string, wg *sync.WaitGroup) error {
 	txCtx := authctx.NewTxContextFromCLI().WithCodec(cdc)
 	cliCtx := context.NewCLIContext().
 		WithCodec(cdc).
 		WithLogger(os.Stdout).
-		WithAccountDecoder(authcmd.GetAccountDecoder(cdc))
+		WithAccountDecoder(authcmd.GetAccountDecoder(cdc)).
+		WithNodeURI(node)
 
 	// get from account later
 	txCtx.AccountNumber = 0

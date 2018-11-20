@@ -6,5 +6,5 @@ for((;;)) {
   list=`curl -s localhost:26657/block?height=$height |grep _txs | sort | uniq`
 
   echo "time: " $time "; block_height: " $height "; " $list
-  sleep 2
+  sleep 1
 }
